@@ -119,31 +119,25 @@ class Music:
             await state.voice.move_to(summoned_channel)
 
         return True
-
-    '''
-    @bot.event
-    async def on_message(self,message):
-        channel=self.bot.get_channel('246848991784992770')
-        await self.bot.send_message(channel,message.content)'''
     
-    async def on_message(self, message):
+    async def on_message(self, message):#caso receba msg privada de mim, entre em um voice chat e fale algo
         if message.channel.id == "309784551440515092" and message.author.id == "119556929885437954":#caso seja eu e o canal seja o private
 	        #channel=self.bot.get_channel('246848991784992770')#chat geral
 	        #await self.bot.send_message(channel, message.content)
 
-
-	        server = discord.Server(id="347791289607258112")
-	        print(server.name)
-	        channel = discord.utils.get(server.channels, type=discord.ChannelType.voice)
-	        print(channel.name)
-	        #channel = server.get_channel('347791289607258114')
-	        
+	        server = self.bot.get_server(id="347791289607258112")#procurando meu server de teste
+	        #channel = discord.utils.get(server.channels, type=discord.ChannelType.voice)
+	        channel = server.get_channel('347791289607258114')
 	        #channel = self.bot.get_channel('347791289607258114')#voice channel do meu server
-	        voice = await self.bot.join_voice_channel(channel)
+	        
+	        #tocando as falas
+	        #voice = await self.bot.join_voice_channel(channel)
+	        if bot.is_voice_connected(server) == True:
+	            voice = bot.voice_client_in(server)
+	        else: 
+	            voice = await bot.join_voice_channel(channel)
 	        player = voice.create_ffmpeg_player("A_really_long_zarya_voice_line_.ogg")
 	        player.start()
-	        #canal = message.author.voice.voice_channel #para indicar o id do canal de voz atual
-	        #await self.bot.send_message(message.channel,canal.id)
 
     @commands.command(pass_context=True,no_pm=True)
     async def Noragami(self,ctx):
@@ -163,8 +157,8 @@ class Music:
     	#await self.bot.send_message(channel,"teste2")
 
 
-    	await self.bot.send_message(ctx.message.channel, ctx.message.channel.id)
-    	await self.bot.send_message(ctx.message.channel, ctx.message.author.id)
+    	await self.bot.send_message(ctx.message.channel, ctx.message.channel.id + " id do canal")
+    	await self.bot.send_message(ctx.message.channel, ctx.message.author.id + " meu id")
 
     	await self.bot.send_message(ctx.message.channel, ctx.message.server.id + " id do server")
     	#347791289607258112 id do meu server
@@ -313,7 +307,7 @@ class Music:
             skip_count = len(state.skip_votes)
             await self.bot.say('Now playing {} [skips: {}/3]'.format(state.current, skip_count))
 
-bot = commands.Bot(command_prefix=commands.when_mentioned_or('$'), description='A playlist example for discord.py')
+bot = commands.Bot(command_prefix=commands.when_mentioned_or('$'), description='meuBote')
 bot.add_cog(Music(bot))
 
 
@@ -322,4 +316,4 @@ bot.add_cog(Music(bot))
 async def on_ready():
     print('Logged in as:\n{0} (ID: {0.id})'.format(bot.user))
 
-bot.run('Mjk3NDE1OTQ2NjQ0MDk0OTk2.DHddzg.qBJUIsH9XMdrMDvEXJUE6dy7Xa4')
+bot.run('INSERT KEY HERE')
