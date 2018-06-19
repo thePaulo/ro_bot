@@ -3,6 +3,8 @@ import discord
 from discord.ext import commands
 import youtube_dl
 
+from gtts import gTTS
+
 if not discord.opus.is_loaded():
     # the 'opus' library here is opus.dll on windows
     # or libopus.so on linux in the current directory
@@ -118,16 +120,24 @@ class Music:
         else:
             await state.voice.move_to(summoned_channel)
 
-        return True
+        return True	
+    async def tts():
+        file = gTTS(text = "je ne laisserais personne se mettre travers de mon chemin",lang='fr-ca')
+        file.save("tts/nope.mp3")
     
     async def on_message(self, message):#caso receba msg privada de mim, entre em um voice chat e fale algo
         if message.channel.id == "309784551440515092" and message.author.id == "119556929885437954":#caso seja eu e o canal seja o private
 	        #channel=self.bot.get_channel('246848991784992770')#chat geral
 	        #await self.bot.send_message(channel, message.content)
-
-	        server = self.bot.get_server(id="347791289607258112")#procurando meu server de teste
+	        if message.content == "!stop":
+	        	await self.bot.close()
+	        	await self.bot.logout()
+	        server = self.bot.get_server(id="116264741512413187")#procurando meu server de teste
 	        #channel = discord.utils.get(server.channels, type=discord.ChannelType.voice)
-	        channel = server.get_channel('347791289607258114')
+	        for ch in server.channels:
+	        	print(ch.id)
+	        	print(ch.name)
+	        channel = server.get_channel('116264741512413188')
 	        #channel = self.bot.get_channel('347791289607258114')#voice channel do meu server
 	        
 	        #tocando as falas
@@ -136,7 +146,11 @@ class Music:
 	            voice = bot.voice_client_in(server)
 	        else: 
 	            voice = await bot.join_voice_channel(channel)
-	        player = voice.create_ffmpeg_player("A_really_long_zarya_voice_line_.ogg")
+	        #await self.tts(message.content)
+	        file = gTTS(text = message.content,lang='en-ca')
+	        file.save("tts/nope.mp3")
+	        player = voice.create_ffmpeg_player("tts/nope.mp3")
+	        #player = voice.create_ffmpeg_player("A_really_long_zarya_voice_line_.ogg")
 	        player.start()
 
     @commands.command(pass_context=True,no_pm=True)
@@ -168,6 +182,9 @@ class Music:
     	#347791289607258113 id do canal do meu server
     	#298938461807837186 id do canal do botspam
     	#246848991784992770 id do canal geral
+    	#116264741512413187 id do server de Jv
+    	#116264741512413188 voice do general do server de jv
+    	#343606198999711756 canal de spoilers
 
     @commands.command(pass_context=True)
     async def heal(self,ctx):
@@ -180,7 +197,7 @@ class Music:
     	player.start()
 
     @commands.command(pass_context=True, no_pm=True)
-    async def play(self, ctx, *, song : str,member :discord.Member):
+    async def play(self, ctx, *, song : str):
         """Plays a song.
 
         If there is a song currently in the queue, then it is
@@ -307,7 +324,7 @@ class Music:
             skip_count = len(state.skip_votes)
             await self.bot.say('Now playing {} [skips: {}/3]'.format(state.current, skip_count))
 
-bot = commands.Bot(command_prefix=commands.when_mentioned_or('$'), description='meuBote')
+bot = commands.Bot(command_prefix=commands.when_mentioned_or('$'), description='A playlist example for discord.py')
 bot.add_cog(Music(bot))
 
 
@@ -316,4 +333,4 @@ bot.add_cog(Music(bot))
 async def on_ready():
     print('Logged in as:\n{0} (ID: {0.id})'.format(bot.user))
 
-bot.run('INSERT KEY HERE')
+bot.run('INSERT YOUR KEY HERE')
