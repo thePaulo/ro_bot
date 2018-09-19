@@ -6,331 +6,390 @@ import youtube_dl
 from gtts import gTTS
 
 if not discord.opus.is_loaded():
-    # the 'opus' library here is opus.dll on windows
-    # or libopus.so on linux in the current directory
-    # you should replace this with the location the
-    # opus library is located in and with the proper filename.
-    # note that on windows this DLL is automatically provided for you
-    discord.opus.load_opus('opus')
+	# the 'opus' library here is opus.dll on windows
+	# or libopus.so on linux in the current directory
+	# you should replace this with the location the
+	# opus library is located in and with the proper filename.
+	# note that on windows this DLL is automatically provided for you
+	discord.opus.load_opus('opus')
 
 class VoiceEntry:
-    def __init__(self, message, player):
-        self.requester = message.author
-        self.channel = message.channel
-        self.player = player
+	def __init__(self, message, player):
+		self.requester = message.author
+		self.channel = message.channel
+		self.player = player
 
-    def __str__(self):
-        fmt = '*{0.title}* uploaded by {0.uploader} and requested by {1.display_name}'
-        duration = self.player.duration
-        if duration:
-            fmt = fmt + ' [length: {0[0]}m {0[1]}s]'.format(divmod(duration, 60))
-        return fmt.format(self.player, self.requester)
+	def __str__(self):
+		fmt = '*{0.title}* uploaded by {0.uploader} and requested by {1.display_name}'
+		duration = self.player.duration
+		if duration:
+			fmt = fmt + ' [length: {0[0]}m {0[1]}s]'.format(divmod(duration, 60))
+		return fmt.format(self.player, self.requester)
 
 class VoiceState:
-    def __init__(self, bot):
-        self.current = None
-        self.voice = None
-        self.bot = bot
-        self.play_next_song = asyncio.Event()
-        self.songs = asyncio.Queue()
-        self.skip_votes = set() # a set of user_ids that voted
-        self.audio_player = self.bot.loop.create_task(self.audio_player_task())
+	def __init__(self, bot):
+		self.current = None
+		self.voice = None
+		self.bot = bot
+		self.play_next_song = asyncio.Event()
+		self.songs = asyncio.Queue()
+		self.skip_votes = set() # a set of user_ids that voted
+		self.audio_player = self.bot.loop.create_task(self.audio_player_task())
 
-    def is_playing(self):
-        if self.voice is None or self.current is None:
-            return False
+	def is_playing(self):
+		if self.voice is None or self.current is None:
+			return False
 
-        player = self.current.player
-        return not player.is_done()
+		player = self.current.player
+		return not player.is_done()
 
-    @property
-    def player(self):
-        return self.current.player
+	@property
+	def player(self):
+		return self.current.player
 
-    def skip(self):
-        self.skip_votes.clear()
-        if self.is_playing():
-            self.player.stop()
+	def skip(self):
+		self.skip_votes.clear()
+		if self.is_playing():
+			self.player.stop()
 
-    def toggle_next(self):
-        self.bot.loop.call_soon_threadsafe(self.play_next_song.set)
+	def toggle_next(self):
+		self.bot.loop.call_soon_threadsafe(self.play_next_song.set)
 
-    async def audio_player_task(self):
-        while True:
-            self.play_next_song.clear()
-            self.current = await self.songs.get()
-            await self.bot.send_message(self.current.channel, 'Now playing ' + str(self.current))
-            self.current.player.start()
-            await self.play_next_song.wait()
+	async def audio_player_task(self):
+		while True:
+			self.play_next_song.clear()
+			self.current = await self.songs.get()
+			await self.bot.send_message(self.current.channel, 'Now playing ' + str(self.current))
+			self.current.player.start()
+			await self.play_next_song.wait()
 
 class Music:
-    """Voice related commands.
+	"""Voice related commands.
 
-    Works in multiple servers at once.
-    """
-    def __init__(self, bot):
-        self.bot = bot
-        self.voice_states = {}
+	Works in multiple servers at once.
+	"""
+	def __init__(self, bot):
+		self.bot = bot
+		self.voice_states = {}
 
-    def get_voice_state(self, server):
-        state = self.voice_states.get(server.id)
-        if state is None:
-            state = VoiceState(self.bot)
-            self.voice_states[server.id] = state
+	def get_voice_state(self, server):
+		state = self.voice_states.get(server.id)
+		if state is None:
+			state = VoiceState(self.bot)
+			self.voice_states[server.id] = state
 
-        return state
+		return state
 
-    async def create_voice_client(self, channel):
-        voice = await self.bot.join_voice_channel(channel)
-        state = self.get_voice_state(channel.server)
-        state.voice = voice
+	async def create_voice_client(self, channel):
+		voice = await self.bot.join_voice_channel(channel)
+		state = self.get_voice_state(channel.server)
+		state.voice = voice
 
-    def __unload(self):
-        for state in self.voice_states.values():
-            try:
-                state.audio_player.cancel()
-                if state.voice:
-                    self.bot.loop.create_task(state.voice.disconnect())
-            except:
-                pass
+	def __unload(self):
+		for state in self.voice_states.values():
+			try:
+				state.audio_player.cancel()
+				if state.voice:
+					self.bot.loop.create_task(state.voice.disconnect())
+			except:
+				pass
 
-    @commands.command(pass_context=True, no_pm=True)
-    async def join(self, ctx, *, channel : discord.Channel):
-        """Joins a voice channel."""
-        try:
-            await self.create_voice_client(channel)
-        except discord.ClientException:
-            await self.bot.say('Already in a voice channel...')
-        except discord.InvalidArgument:
-            await self.bot.say('This is not a voice channel...')
-        else:
-            await self.bot.say('Ready to play audio in ' + channel.name)
+	@commands.command(pass_context=True, no_pm=True)
+	async def join(self, ctx, *, channel : discord.Channel):
+		"""Joins a voice channel."""
+		try:
+			await self.create_voice_client(channel)
+		except discord.ClientException:
+			await self.bot.say('Already in a voice channel...')
+		except discord.InvalidArgument:
+			await self.bot.say('This is not a voice channel...')
+		else:
+			await self.bot.say('Ready to play audio in ' + channel.name)
 
-    @commands.command(pass_context=True, no_pm=True)
-    async def summon(self, ctx):
-        """Summons the bot to join your voice channel."""
-        summoned_channel = ctx.message.author.voice_channel
-        if summoned_channel is None:
-            await self.bot.say('You are not in a voice channel.')
-            return False
+	@commands.command(pass_context=True, no_pm=True)
+	async def summon(self, ctx):
+		"""Summons the bot to join your voice channel."""
+		summoned_channel = ctx.message.author.voice_channel
+		if summoned_channel is None:
+			await self.bot.say('You are not in a voice channel.')
+			return False
 
-        state = self.get_voice_state(ctx.message.server)
-        if state.voice is None:
-            state.voice = await self.bot.join_voice_channel(summoned_channel)
-        else:
-            await state.voice.move_to(summoned_channel)
+		state = self.get_voice_state(ctx.message.server)
+		if state.voice is None:
+			state.voice = await self.bot.join_voice_channel(summoned_channel)
+		else:
+			await state.voice.move_to(summoned_channel)
 
-        return True	
-    async def tts():
-        file = gTTS(text = "je ne laisserais personne se mettre travers de mon chemin",lang='fr-ca')
-        file.save("tts/nope.mp3")
-    
-    async def on_message(self, message):#caso receba msg privada de mim, entre em um voice chat e fale algo
-        if message.channel.id == "309784551440515092" and message.author.id == "119556929885437954":#caso seja eu e o canal seja o private
-	        #channel=self.bot.get_channel('246848991784992770')#chat geral
-	        #await self.bot.send_message(channel, message.content)
-	        if message.content == "!stop":
-	        	await self.bot.close()
-	        	await self.bot.logout()
-	        server = self.bot.get_server(id="116264741512413187")#procurando meu server de teste
-	        #channel = discord.utils.get(server.channels, type=discord.ChannelType.voice)
-	        for ch in server.channels:
-	        	print(ch.id)
-	        	print(ch.name)
-	        channel = server.get_channel('116264741512413188')
-	        #channel = self.bot.get_channel('347791289607258114')#voice channel do meu server
-	        
-	        #tocando as falas
-	        #voice = await self.bot.join_voice_channel(channel)
-	        if bot.is_voice_connected(server) == True:
-	            voice = bot.voice_client_in(server)
-	        else: 
-	            voice = await bot.join_voice_channel(channel)
-	        #await self.tts(message.content)
-	        file = gTTS(text = message.content,lang='en-ca')
-	        file.save("tts/nope.mp3")
-	        player = voice.create_ffmpeg_player("tts/nope.mp3")
-	        #player = voice.create_ffmpeg_player("A_really_long_zarya_voice_line_.ogg")
-	        player.start()
-
-    @commands.command(pass_context=True,no_pm=True)
-    async def Noragami(self,ctx):
-    	channel = ctx.message.author.voice.voice_channel
-    	
-    	if bot.is_voice_connected(ctx.message.server) == True:
-    		voice = bot.voice_client_in(ctx.message.server)
-    	else: 
-    		voice = await bot.join_voice_channel(channel)
-    	player = voice.create_ffmpeg_player("A_really_long_zarya_voice_line_.ogg")
-    	player.start()
+		return True	
+	async def tts():
+		file = gTTS(text = "je ne laisserais personne se mettre travers de mon chemin",lang='fr-ca')
+		file.save("tts/nope.mp3")
 	
-    @commands.command(pass_context=True)
-    async def PM(self,ctx):
-    	#await self.bot.send_message(ctx.message.author,"PORRANENHUMA MLK")
-    	#channel=bot.get_channel('246848991784992770')
-    	#await self.bot.send_message(channel,"teste2")
+	async def on_message(self, message):#caso receba msg privada de mim, entre em um voice chat e fale algo
+		#if message.channel.id == "298938461807837186":
+		if message.channel.id == "309784551440515092" and message.author.id == "119556929885437954":#caso seja eu e o canal seja o private
+			#channel=self.bot.get_channel('246848991784992770')#chat geral
+			#await self.bot.send_message(channel, message.content)
+			if message.content == "!stop":
+				await self.bot.close()
+				await self.bot.logout()
+
+			if "fala" in message.content:
+				channel=self.bot.get_channel('246848991784992770')#chat geral
+				message.content = message.content.replace('fala','')
+				await self.bot.send_message(channel, message.content)
+			else:
+				server = self.bot.get_server(id="116264741512413187")#procurando meu server de teste
+				#channel = discord.utils.get(server.channels, type=discord.ChannelType.voice)
+				for ch in server.channels:
+					print(ch.id)
+					print(ch.name)
+				channel = server.get_channel('116264741512413188')
+				#channel = self.bot.get_channel('347791289607258114')#voice channel do meu server
+				
+				#tocando as falas
+				#voice = await self.bot.join_voice_channel(channel)
+				if bot.is_voice_connected(server) == True:
+					voice = bot.voice_client_in(server)
+				else: 
+					voice = await bot.join_voice_channel(channel)
+				#await self.tts(message.content)
+				file = gTTS(text = message.content,lang='en-ca')
+				file.save("tts/nope.mp3")
+				player = voice.create_ffmpeg_player("tts/nope.mp3")
+				#player = voice.create_ffmpeg_player("A_really_long_zarya_voice_line_.ogg")
+				player.start()
+
+	@commands.command(pass_context=True,no_pm=True)
+	async def shudafuckup(self,ctx):
+		bot.loop.create_task(my_background_task(self,ctx))
+		'''x = ctx.message.author.server.members#ACHA OS USUARIOS POR ID
+								for member in x:#iterando sobre os usuarios do server
+									#await self.bot.send_message(ctx.message.channel, member.name + " "+ member.id)
+									if "LucasLokoRN" in member.name or "Soul" in member.name or "teste" \
+									in member.name or "bot" in member.name or "Teste" in member.name or str(member.id) == "223970635062181890":#member.id == 119556929885437954:#119556929885437954 EU #223970635062181890 Duarte
+										await bot.server_voice_state(member,mute=True,deafen=True)
+										#await self.bot.send_message(ctx.message.channel, "deveria ter feito algo")
+										#update_task(self,ctx)
+										bot.loop.create_task(my_background_task(self,ctx))
+									#223970635062181890 id de duarte'''
 
 
-    	await self.bot.send_message(ctx.message.channel, ctx.message.channel.id + " id do canal")
-    	await self.bot.send_message(ctx.message.channel, ctx.message.author.id + " meu id")
+	@commands.command(pass_context=True,no_pm=True)
+	async def Noragami(self,ctx):
+		channel = ctx.message.author.voice.voice_channel
+		
+		if bot.is_voice_connected(ctx.message.server) == True:
+			voice = bot.voice_client_in(ctx.message.server)
+		else: 
+			voice = await bot.join_voice_channel(channel)
+		player = voice.create_ffmpeg_player("A_really_long_zarya_voice_line_.ogg")
+		player.start()
+	
+	@commands.command(pass_context=True)
+	async def PM(self,ctx):
+		#await self.bot.send_message(ctx.message.author,"PORRANENHUMA MLK")
+		#channel=bot.get_channel('246848991784992770')
+		#await self.bot.send_message(channel,"teste2")
 
-    	await self.bot.send_message(ctx.message.channel, ctx.message.server.id + " id do server")
-    	#347791289607258112 id do meu server
-    	#347791289607258114 voice channel do meu server
-    	#309784551440515092 canal de texto com o bot
-    	#119556929885437954 id do meu usuario
-    	#347791289607258113 id do canal do meu server
-    	#298938461807837186 id do canal do botspam
-    	#246848991784992770 id do canal geral
-    	#116264741512413187 id do server de Jv
-    	#116264741512413188 voice do general do server de jv
-    	#343606198999711756 canal de spoilers
 
-    @commands.command(pass_context=True)
-    async def heal(self,ctx):
-    	channel = ctx.message.author.voice.voice_channel
-    	try:
-    		voice = await bot.join_voice_channel(channel)
-    	except:
-    		pass
-    	player = voice.create_ffmpeg_player("need_healing.ogg")
-    	player.start()
+		await self.bot.send_message(ctx.message.channel, ctx.message.channel.id + " id do canal")
+		await self.bot.send_message(ctx.message.channel, ctx.message.author.id + " meu id")
 
-    @commands.command(pass_context=True, no_pm=True)
-    async def play(self, ctx, *, song : str):
-        """Plays a song.
+		await self.bot.send_message(ctx.message.channel, ctx.message.server.id + " id do server")
+		#347791289607258112 id do meu server
+		#347791289607258114 voice channel do meu server
+		#309784551440515092 canal de texto com o bot
+		#119556929885437954 id do meu usuario
+		#347791289607258113 id do canal do meu server
+		#298938461807837186 id do canal do botspam
+		#246848991784992770 id do canal geral
+		#116264741512413187 id do server de Jv
+		#116264741512413188 voice do general do server de jv
+		#343606198999711756 canal de spoilers
 
-        If there is a song currently in the queue, then it is
-        queued until the next song is done playing.
+	@commands.command(pass_context=True)
+	async def heal(self,ctx):
+		channel = ctx.message.author.voice.voice_channel
+		try:
+			voice = await bot.join_voice_channel(channel)
+		except:
+			pass
+		player = voice.create_ffmpeg_player("need_healing.ogg")
+		player.start()
 
-        This command automatically searches as well from YouTube.
-        The list of supported sites can be found here:
-        https://rg3.github.io/youtube-dl/supportedsites.html
-        """
-        #voice = await ctx.message.author.voice.channel.connect()
-        '''voice = ctx.message.author.voice
-        voice.play(discord.FFmpegPCMAudio('Noragami op 2- Full.mp3'))'''
-        
-        state = self.get_voice_state(ctx.message.server)
-        opts = {
-            'default_search': 'auto',
-            'quiet': True,
-        }
+	@commands.command(pass_context=True, no_pm=True)
+	async def play(self, ctx, *, song : str):
+		"""Plays a song.
 
-        if state.voice is None:
-            success = await ctx.invoke(self.summon)
-            if not success:
-                return
+		If there is a song currently in the queue, then it is
+		queued until the next song is done playing.
 
-        try:
-       	    #voice = await bot.join_voice_channel(member.channel)
-            #player = voice.create_ffmpeg_player("Noragami op 2- Full.mp3")
-            #vc = ctx.author.voice_channel
-            #voice_client = await self.get_voice_client(vc)
-            #voice_client.play_audio('Noragami op 2- Full.mp3')
-            #song = _make_local_song("Noragami op 2- Full.mp3")
-            #player = state.voice.create_ffmpeg_player(song.id,start_time=datetime.datetime.now(),end_time=datetime.datetime.now() + datetime.timedelta(minutes = 2))
-            player = await state.voice.create_ytdl_player(song, ytdl_options=opts, after=state.toggle_next)
-        except Exception as e:
-            fmt = 'An error occurred while processing this request: ```py\n{}: {}\n```'
-            await self.bot.send_message(ctx.message.channel, fmt.format(type(e).__name__, e))
-        else:
-            player.volume = 0.6
-            entry = VoiceEntry(ctx.message, player)
-            await self.bot.say('Enqueued ' + str(entry))
-            await state.songs.put(entry)
-            
-    @commands.command(pass_context=True, no_pm=True)
-    async def volume(self, ctx, value : int):
-        """Sets the volume of the currently playing song."""
+		This command automatically searches as well from YouTube.
+		The list of supported sites can be found here:
+		https://rg3.github.io/youtube-dl/supportedsites.html
+		"""
+		#voice = await ctx.message.author.voice.channel.connect()
+		'''voice = ctx.message.author.voice
+		voice.play(discord.FFmpegPCMAudio('Noragami op 2- Full.mp3'))'''
+		
+		state = self.get_voice_state(ctx.message.server)
+		opts = {
+			'default_search': 'auto',
+			'quiet': True,
+		}
 
-        state = self.get_voice_state(ctx.message.server)
-        if state.is_playing():
-            player = state.player
-            player.volume = value / 100
-            await self.bot.say('Set the volume to {:.0%}'.format(player.volume))
+		if state.voice is None:
+			success = await ctx.invoke(self.summon)
+			if not success:
+				return
 
-    @commands.command(pass_context=True, no_pm=True)
-    async def pause(self, ctx):
-        """Pauses the currently played song."""
-        state = self.get_voice_state(ctx.message.server)
-        if state.is_playing():
-            player = state.player
-            player.pause()
+		try:
+			#voice = await bot.join_voice_channel(member.channel)
+			#player = voice.create_ffmpeg_player("Noragami op 2- Full.mp3")
+			#vc = ctx.author.voice_channel
+			#voice_client = await self.get_voice_client(vc)
+			#voice_client.play_audio('Noragami op 2- Full.mp3')
+			#song = _make_local_song("Noragami op 2- Full.mp3")
+			#player = state.voice.create_ffmpeg_player(song.id,start_time=datetime.datetime.now(),end_time=datetime.datetime.now() + datetime.timedelta(minutes = 2))
+			player = await state.voice.create_ytdl_player(song, ytdl_options=opts, after=state.toggle_next)
+		except Exception as e:
+			fmt = 'An error occurred while processing this request: ```py\n{}: {}\n```'
+			await self.bot.send_message(ctx.message.channel, fmt.format(type(e).__name__, e))
+		else:
+			player.volume = 0.6
+			entry = VoiceEntry(ctx.message, player)
+			await self.bot.say('Enqueued ' + str(entry))
+			await state.songs.put(entry)
+			
+	@commands.command(pass_context=True, no_pm=True)
+	async def volume(self, ctx, value : int):
+		"""Sets the volume of the currently playing song."""
 
-    @commands.command(pass_context=True, no_pm=True)
-    async def resume(self, ctx):
-        """Resumes the currently played song."""
-        state = self.get_voice_state(ctx.message.server)
-        if state.is_playing():
-            player = state.player
-            player.resume()
+		state = self.get_voice_state(ctx.message.server)
+		if state.is_playing():
+			player = state.player
+			player.volume = value / 100
+			await self.bot.say('Set the volume to {:.0%}'.format(player.volume))
 
-    @commands.command(pass_context=True, no_pm=True)
-    async def stop(self, ctx):
-        """Stops playing audio and leaves the voice channel.
+	@commands.command(pass_context=True, no_pm=True)
+	async def pause(self, ctx):
+		"""Pauses the currently played song."""
+		state = self.get_voice_state(ctx.message.server)
+		if state.is_playing():
+			player = state.player
+			player.pause()
 
-        This also clears the queue.
-        """
-        server = ctx.message.server
-        state = self.get_voice_state(server)
+	@commands.command(pass_context=True, no_pm=True)
+	async def resume(self, ctx):
+		"""Resumes the currently played song."""
+		state = self.get_voice_state(ctx.message.server)
+		if state.is_playing():
+			player = state.player
+			player.resume()
 
-        if state.is_playing():
-            player = state.player
-            player.stop()
+	@commands.command(pass_context=True, no_pm=True)
+	async def stop(self, ctx):
+		"""Stops playing audio and leaves the voice channel.
 
-        try:
-            state.audio_player.cancel()
-            del self.voice_states[server.id]
-            await state.voice.disconnect()
-        except:
-            pass
+		This also clears the queue.
+		"""
+		server = ctx.message.server
+		state = self.get_voice_state(server)
 
-    @commands.command(pass_context=True, no_pm=True)
-    async def skip(self, ctx):
-        """Vote to skip a song. The song requester can automatically skip.
+		if state.is_playing():
+			player = state.player
+			player.stop()
 
-        3 skip votes are needed for the song to be skipped.
-        """
+		try:
+			state.audio_player.cancel()
+			del self.voice_states[server.id]
+			await state.voice.disconnect()
+		except:
+			pass
 
-        state = self.get_voice_state(ctx.message.server)
-        if not state.is_playing():
-            await self.bot.say('Not playing any music right now...')
-            return
+	@commands.command(pass_context=True, no_pm=True)
+	async def skip(self, ctx):
+		"""Vote to skip a song. The song requester can automatically skip.
 
-        voter = ctx.message.author
-        if voter == state.current.requester:
-            await self.bot.say('Requester requested skipping song...')
-            state.skip()
-        elif voter.id not in state.skip_votes:
-            state.skip_votes.add(voter.id)
-            total_votes = len(state.skip_votes)
-            if total_votes >= 3:
-                await self.bot.say('Skip vote passed, skipping song...')
-                state.skip()
-            else:
-                await self.bot.say('Skip vote added, currently at [{}/3]'.format(total_votes))
-        else:
-            await self.bot.say('You have already voted to skip this song.')
+		3 skip votes are needed for the song to be skipped.
+		"""
 
-    @commands.command(pass_context=True, no_pm=True)
-    async def playing(self, ctx):
-        """Shows info about the currently played song."""
+		state = self.get_voice_state(ctx.message.server)
+		if not state.is_playing():
+			await self.bot.say('Not playing any music right now...')
+			return
 
-        state = self.get_voice_state(ctx.message.server)
-        if state.current is None:
-            await self.bot.say('Not playing anything.')
-        else:
-            skip_count = len(state.skip_votes)
-            await self.bot.say('Now playing {} [skips: {}/3]'.format(state.current, skip_count))
+		voter = ctx.message.author
+		if voter == state.current.requester:
+			await self.bot.say('Requester requested skipping song...')
+			state.skip()
+		elif voter.id not in state.skip_votes:
+			state.skip_votes.add(voter.id)
+			total_votes = len(state.skip_votes)
+			if total_votes >= 3:
+				await self.bot.say('Skip vote passed, skipping song...')
+				state.skip()
+			else:
+				await self.bot.say('Skip vote added, currently at [{}/3]'.format(total_votes))
+		else:
+			await self.bot.say('You have already voted to skip this song.')
+
+	@commands.command(pass_context=True, no_pm=True)
+	async def playing(self, ctx):
+		"""Shows info about the currently played song."""
+
+		state = self.get_voice_state(ctx.message.server)
+		if state.current is None:
+			await self.bot.say('Not playing anything.')
+		else:
+			skip_count = len(state.skip_votes)
+			await self.bot.say('Now playing {} [skips: {}/3]'.format(state.current, skip_count))
 
 bot = commands.Bot(command_prefix=commands.when_mentioned_or('$'), description='A playlist example for discord.py')
 bot.add_cog(Music(bot))
 
+async def my_background_task(self,ctx):
+	await bot.wait_until_ready()
+	counter = 0
+	channel = discord.Object(id='347791289607258113')
+	while not bot.is_closed:
+		x = ctx.message.author.server.members#ACHA OS USUARIOS POR ID
+		for member in x:#iterando sobre os usuarios do server
+			#await self.bot.send_message(ctx.message.channel, member.name + " "+ member.id)
+			if "Artorius" in member.name or "HexTidus" in member.name or "Luiz" in member.name \
+			or "Chicote" in member.name or "Thalleste" in member.name or "Link" in member.name \
+			or "Miyahe" in member.name or "Rafão" in member.name or "Vithanos" in member.name \
+			or "Sengoshi" in member.name or "lucasclv" in member.name or "Soul" in member.name:
+				#do nothing
+				print("nothing")
+			else:
+				await bot.send_message(channel,"mutei esse nego "+member.name)
+				await bot.server_voice_state(member,mute=True,deafen=True)
+			'''if "LucasLokoRN" in member.name or "Soul" in member.name or "teste" \
+												in member.name or "bot" in member.name or "Teste" in member.name or str(member.id) == "223970635062181890":#member.id == 119556929885437954:#119556929885437954 EU #223970635062181890 Duarte'''
+				
+				#await self.bot.send_message(ctx.message.channel, "deveria ter feito algo")
+				#update_task(self,ctx)
+				#bot.loop.create_task(my_background_task(self,ctx))
 
+		counter += 1
+		await bot.send_message(channel, counter)
+		#await self.bot.shudafuckup(self,ctx)
+		await asyncio.sleep(2) # task runs every 60 seconds
+
+async def change_status():
+	await bot.wait_until_ready()
+	while not bot.is_closed:
+		await bot.change_presence(game=discord.Game(name="Eu ODEIO lucas Duarte",type=0))
+		await asyncio.sleep(60)
 
 @bot.event
 async def on_ready():
-    print('Logged in as:\n{0} (ID: {0.id})'.format(bot.user))
+	print('Logged in as:\n{0} (ID: {0.id})'.format(bot.user))
+	await bot.change_presence(game=discord.Game(name="Eu ODEIO lucas Duarte",type=0))
+	#update_task()
 
+#bot.loop.create_task(my_background_task())
+#bot.loop.create_task(change_status())
 bot.run('INSERT YOUR KEY HERE')
